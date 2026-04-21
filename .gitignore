@@ -1,0 +1,16 @@
+# Windows Executables
+*.exe
+*.o
+
+# Project Data and Binary Storage
+c_server/data/*.bin
+
+# VS Code / IDE Temporary Files
+.vscode/
+tempCodeRunnerFile.*
+
+# Mac/OSGarbage
+.DS_Store
+
+# Plan PDF
+implementation_plan.pdf

@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Health Monitor — Patient Detail</title>
+    <meta name="description" content="Detailed view of a patient's health readings with sorting and history chart">
+    <link rel="stylesheet" href="/style.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+</head>
+<body>
+
+<div class="app-container">
+
+    <!-- Navigation -->
+    <nav class="nav">
+        <div class="nav-brand">
+            <div class="nav-logo-icon">♥</div>
+            <span class="nav-title">HealthMon</span>
+        </div>
+        <div class="nav-links">
+            <a href="/" class="nav-link" id="nav-dashboard">Dashboard</a>
+            <a href="/patients.html" class="nav-link active" id="nav-patients">Patients</a>
+        </div>
+    </nav>
+
+    <!-- Back button + patient name -->
+    <header class="page-header" style="display:flex;align-items:center;gap:16px;margin-bottom:24px">
+        <button class="btn btn-ghost btn-sm" onclick="history.back()">← Back</button>
+        <div>
+            <h1 id="patientTitle" style="font-size:24px">Loading…</h1>
+            <p id="patientSubtitle" style="color:var(--text-sec);font-size:13px"></p>
+        </div>
+    </header>
+
+    <!-- Stats summary row -->
+    <div class="stats-row" id="statsRow">
+        <div class="stat-box">
+            <div class="s-label">Total Readings</div>
+            <div class="s-value" id="statTotal" style="color:var(--spo2-color)">—</div>
+        </div>
+        <div class="stat-box">
+            <div class="s-label">Avg Heart Rate</div>
+            <div class="s-value" id="statAvgHr" style="color:var(--hr-color)">—</div>
+        </div>
+        <div class="stat-box">
+            <div class="s-label">Min / Max HR</div>
+            <div class="s-value" id="statMinMaxHr" style="font-size:18px;color:var(--hr-color)">— / —</div>
+        </div>
+        <div class="stat-box">
+            <div class="s-label">Avg SpO2</div>
+            <div class="s-value" id="statAvgSpo2" style="color:var(--spo2-color)">—</div>
+        </div>
+        <div class="stat-box">
+            <div class="s-label">Min / Max SpO2</div>
+            <div class="s-value" id="statMinMaxSpo2" style="font-size:18px;color:var(--spo2-color)">— / —</div>
+        </div>
+    </div>
+
+    <!-- Action bar: simulate + undo -->
+    <div class="card">
+        <div class="control-bar">
+            <button class="btn btn-primary" id="simBtn" onclick="simulateReading()">
+                ⚡ Simulate Reading
+            </button>
+            <button class="btn btn-ghost" id="undoBtn" onclick="undoLast()">
+                ↩ Undo Last
+            </button>
+            <button class="btn btn-ghost" onclick="loadReadings('latest')">↺ Refresh</button>
+        </div>
+    </div>
+
+    <!-- Full history chart -->
+    <div class="card">
+        <div class="card-header">
+            <h2>Reading History <span class="tag" id="chartTag">All time</span></h2>
+            <div class="live-indicator">
+                <div class="pulse-dot"></div>
+                <span id="chartInfo">—</span>
+            </div>
+        </div>
+        <div class="chart-container">
+            <canvas id="historyChart"></canvas>
+        </div>
+    </div>
+
+    <!-- Sort controls + readings table -->
+    <div class="card">
+        <div class="card-header">
+            <h2>Readings Table</h2>
+        </div>
+        <div class="sort-bar">
+            <span>Sort by:</span>
+            <button class="btn-sort" onclick="loadReadings('latest')" id="sort-latest">Latest First</button>
+            <button class="btn-sort" onclick="loadReadings('hr')"     id="sort-hr">Heart Rate ↑</button>
+            <button class="btn-sort" onclick="loadReadings('spo2')"   id="sort-spo2">SpO2 ↑</button>
+        </div>
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>#</th>
+                    <th>Heart Rate</th>
+                    <th>SpO2</th>
+                    <th>Recorded At</th>
+                    <th>HR Status</th>
+                    <th>O₂ Status</th>
+                </tr>
+            </thead>
+            <tbody id="readingsBody">
+                <tr><td colspan="6" class="empty-msg">Loading…</td></tr>
+            </tbody>
+        </table>
+    </div>
+
+</div><!-- end .app-container -->
+
+<script src="/app.js"></script>
+<script>
+    /* ---- Read patient ID from URL ---- */
+    const params    = new URLSearchParams(window.location.search);
+    const patientId = params.get('id');
+    let   chart     = null;
+    let   lastSort  = 'latest';
+
+    if (!patientId) {
+        alert('No patient ID specified. Returning to patients list.');
+        window.location.href = '/patients.html';
+    }
+
+    /* ---- Load patient info + readings ---- */
+    async function init() {
+        try {
+            const patient = await apiFetch(`/api/patients/${patientId}`);
+            document.title = `Health Monitor — ${patient.name}`;
+            document.getElementById('patientTitle').textContent     = patient.name;
+            document.getElementById('patientSubtitle').textContent  = `Age ${patient.age} · Patient ID #${patient.id}`;
+        } catch (e) {
+            showToast('Could not load patient: ' + e.message, 'error');
+        }
+        initChart();
+        loadReadings('latest');
+    }
+
+    /* ---- Load / re-sort readings ---- */
+    async function loadReadings(sortBy) {
+        lastSort = sortBy;
+
+        /* Highlight active sort button */
+        ['latest','hr','spo2'].forEach(s =>
+            document.getElementById('sort-' + s).classList.toggle('active-sort', s === sortBy));
+
+        const endpoint = sortBy === 'latest'
+            ? `/api/patients/${patientId}/readings`
+            : `/api/patients/${patientId}/readings?sort=${sortBy}`;
+
+        try {
+            const readings = await apiFetch(endpoint);
+            updateStats(readings);
+            updateChart(readings, sortBy);
+            renderTable(readings, sortBy);
+        } catch (e) {
+            showToast('Error loading readings: ' + e.message, 'error');
+        }
+    }
+
+    /* ---- Compute and render summary stats ---- */
+    function updateStats(readings) {
+        document.getElementById('statTotal').textContent = readings.length;
+        if (!readings.length) return;
+        const hrs   = readings.map(r => r.hr);
+        const spo2s = readings.map(r => r.spo2);
+        const avg   = arr => Math.round(arr.reduce((a,b) => a+b, 0) / arr.length);
+        document.getElementById('statAvgHr').textContent     = avg(hrs);
+        document.getElementById('statAvgSpo2').textContent   = avg(spo2s);
+        document.getElementById('statMinMaxHr').textContent  = Math.min(...hrs) + ' / ' + Math.max(...hrs);
+        document.getElementById('statMinMaxSpo2').textContent = Math.min(...spo2s) + ' / ' + Math.max(...spo2s);
+    }
+
+    /* ---- Update history chart ---- */
+    function initChart() {
+        const ctx = document.getElementById('historyChart').getContext('2d');
+        chart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: [],
+                datasets: [
+                    {
+                        label: 'Heart Rate (BPM)',
+                        data: [], borderColor: '#ff4757',
+                        backgroundColor: 'rgba(255,71,87,0.07)',
+                        tension: 0.4, fill: true, yAxisID: 'yHR',
+                        pointRadius: 3, pointHoverRadius: 6
+                    },
+                    {
+                        label: 'SpO2 (%)',
+                        data: [], borderColor: '#00d4ff',
+                        backgroundColor: 'rgba(0,212,255,0.05)',
+                        tension: 0.4, fill: true, yAxisID: 'ySPO2',
+                        pointRadius: 3, pointHoverRadius: 6
+                    }
+                ]
+            },
+            options: {
+                responsive: true, maintainAspectRatio: false,
+                animation: { duration: 500 },
+                interaction: { mode: 'index', intersect: false },
+                plugins: {
+                    legend: { labels: { color: '#8b949e', font: { family: 'Inter', size: 13 }, padding: 20 } },
+                    tooltip: {
+                        backgroundColor: 'rgba(17,24,39,0.95)',
+                        borderColor: 'rgba(255,255,255,0.1)', borderWidth: 1,
+                        titleColor: '#f0f6fc', bodyColor: '#8b949e', padding: 12
+                    }
+                },
+                scales: {
+                    x: {
+                        ticks: { color: '#4b5563', font: { family: 'Inter', size: 11 }, maxTicksLimit: 10 },
+                        grid:  { color: 'rgba(255,255,255,0.04)' }
+                    },
+                    yHR: {
+                        type: 'linear', position: 'left', min: 40, max: 130,
+                        ticks: { color: '#ff4757', font: { family: 'Inter' } },
+                        grid:  { color: 'rgba(255,255,255,0.04)' },
+                        title: { display: true, text: 'BPM', color: '#ff4757', font: { size: 12 } }
+                    },
+                    ySPO2: {
+                        type: 'linear', position: 'right', min: 85, max: 102,
+                        ticks: { color: '#00d4ff', font: { family: 'Inter' } },
+                        grid:  { display: false },
+                        title: { display: true, text: 'SpO2 %', color: '#00d4ff', font: { size: 12 } }
+                    }
+                }
+            }
+        });
+    }
+
+    function updateChart(readings, sortBy) {
+        /* For sorted views, x-axis is rank; for time view, use time */
+        let display = [...readings];
+        if (sortBy === 'latest') display = [...readings].reverse(); /* oldest→newest */
+
+        const labels = sortBy === 'latest'
+            ? display.map(r => formatTime(r.timestamp))
+            : display.map((_, i) => '#' + (i + 1));
+
+        chart.data.labels            = labels;
+        chart.data.datasets[0].data  = display.map(r => r.hr);
+        chart.data.datasets[1].data  = display.map(r => r.spo2);
+        chart.update();
+
+        const tagText = sortBy === 'hr' ? 'Sorted by HR ↑' :
+                        sortBy === 'spo2' ? 'Sorted by SpO2 ↑' : 'Chronological';
+        document.getElementById('chartTag').textContent  = tagText;
+        document.getElementById('chartInfo').textContent = display.length + ' readings';
+    }
+
+    /* ---- Render readings table ---- */
+    function renderTable(readings, sortBy) {
+        const tbody = document.getElementById('readingsBody');
+        if (!readings.length) {
+            tbody.innerHTML = '<tr><td colspan="6" class="empty-msg">No readings yet. Click ⚡ Simulate Reading!</td></tr>';
+            return;
+        }
+        tbody.innerHTML = readings.map((r, i) => {
+            const hs = hrStatus(r.hr), ss = spo2Status(r.spo2);
+            return `<tr>
+                <td style="color:var(--text-muted)">${i + 1}</td>
+                <td><span class="val-badge hr-badge">${r.hr} BPM</span></td>
+                <td><span class="val-badge spo2-badge">${r.spo2}%</span></td>
+                <td style="color:var(--text-sec);font-size:13px">${formatDateTime(r.timestamp)}</td>
+                <td style="color:${hs.color};font-weight:600">${hs.text}</td>
+                <td style="color:${ss.color};font-weight:600">${ss.text}</td>
+            </tr>`;
+        }).join('');
+    }
+
+    /* ---- Simulate a reading ---- */
+    async function simulateReading() {
+        const btn = document.getElementById('simBtn');
+        btn.disabled = true; btn.innerHTML = '<span class="spinner"></span> Sending…';
+        try {
+            const res = await apiFetch(`/api/simulate/${patientId}`, { method: 'POST', body: '' });
+            showToast(`Reading added: HR ${res.hr} BPM, SpO2 ${res.spo2}%`, 'success');
+            loadReadings(lastSort);
+        } catch (e) {
+            showToast('Simulation failed: ' + e.message, 'error');
+        } finally {
+            btn.disabled = false; btn.innerHTML = '⚡ Simulate Reading';
+        }
+    }
+
+    /* ---- Undo last reading (pops Stack) ---- */
+    async function undoLast() {
+        const btn = document.getElementById('undoBtn');
+        btn.disabled = true; btn.textContent = 'Undoing…';
+        try {
+            const res = await apiFetch(`/api/patients/${patientId}/undo`, { method: 'POST', body: '' });
+            showToast(`Undone! Removed HR ${res.removed.hr}, SpO2 ${res.removed.spo2}`, 'success');
+            loadReadings(lastSort);
+        } catch (e) {
+            showToast(e.message, 'error');
+        } finally {
+            btn.disabled = false; btn.textContent = '↩ Undo Last';
+        }
+    }
+
+    /* ---- Init ---- */
+    init();
+</script>
+</body>
+</html>

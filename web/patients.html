@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Health Monitor — Patients</title>
+    <meta name="description" content="Manage patients, add new records, search by BST, sort readings, and undo insertions">
+    <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+
+<div class="app-container">
+
+    <!-- Navigation -->
+    <nav class="nav">
+        <div class="nav-brand">
+            <div class="nav-logo-icon">♥</div>
+            <span class="nav-title">HealthMon</span>
+        </div>
+        <div class="nav-links">
+            <a href="/" class="nav-link" id="nav-dashboard">Dashboard</a>
+            <a href="/patients.html" class="nav-link active" id="nav-patients">Patients</a>
+        </div>
+    </nav>
+
+    <!-- Page header -->
+    <header class="page-header">
+        <h1>Patient Management</h1>
+        <p>Create, search (BST), sort readings (Bubble Sort), and manage patient data</p>
+    </header>
+
+    <!-- Add patient + search row -->
+    <div class="card">
+        <div class="control-bar">
+            <div class="form-group">
+                <label for="searchInput">Search Patient (BST O(log n))</label>
+                <input id="searchInput" type="text" placeholder="Type a name…" oninput="filterPatients()" autocomplete="off">
+            </div>
+            <button class="btn btn-blue" onclick="openAddModal()">+ Add Patient</button>
+            <button class="btn btn-ghost" onclick="loadPatients()">↺ Refresh</button>
+        </div>
+    </div>
+
+    <!-- Patient cards grid -->
+    <div class="patients-grid" id="patientsGrid">
+        <div class="card" style="grid-column:1/-1; text-align:center; padding:40px">
+            <div class="spinner" style="margin:0 auto 12px"></div>
+            <p style="color:var(--text-muted)">Loading patients…</p>
+        </div>
+    </div>
+
+</div><!-- end .app-container -->
+
+<!-- ── Add Patient Modal ────────────────────────────────────────── -->
+<div class="modal-overlay" id="addModal">
+    <div class="modal">
+        <h2>➕ Add Patient</h2>
+        <div class="form-row">
+            <div class="form-group">
+                <label for="newName">Full Name *</label>
+                <input id="newName" type="text" placeholder="e.g. Sarthak" autofocus>
+            </div>
+            <div class="form-group" style="max-width:110px">
+                <label for="newAge">Age</label>
+                <input id="newAge" type="number" min="1" max="120" placeholder="20">
+            </div>
+        </div>
+        <div class="modal-actions">
+            <button class="btn btn-ghost" onclick="closeAddModal()">Cancel</button>
+            <button class="btn btn-blue" id="addBtn" onclick="submitAddPatient()">Create Patient</button>
+        </div>
+    </div>
+</div>
+
+<script src="/app.js"></script>
+<script>
+    let allPatients = [];
+
+    /* ---- Load all patients ---- */
+    async function loadPatients() {
+        try {
+            allPatients = await apiFetch('/api/patients');
+            renderPatients(allPatients);
+        } catch (e) {
+            showToast('Could not load patients: ' + e.message, 'error');
+        }
+    }
+
+    /* ---- Render patient cards ---- */
+    function renderPatients(list) {
+        const grid = document.getElementById('patientsGrid');
+        if (list.length === 0) {
+            grid.innerHTML = `
+                <div class="card" style="grid-column:1/-1;text-align:center;padding:48px">
+                    <div style="font-size:40px;margin-bottom:12px">👤</div>
+                    <h3 style="color:var(--text-sec);font-weight:500;margin-bottom:8px">No patients yet</h3>
+                    <p style="color:var(--text-muted);font-size:14px">Click <strong>+ Add Patient</strong> to create one</p>
+                </div>`;
+            return;
+        }
+        grid.innerHTML = list.map(p => {
+            const initials = p.name.split(' ').map(w => w[0]).join('').substring(0, 2).toUpperCase();
+            return `
+            <div class="patient-card" id="pcard-${p.id}">
+                <div class="patient-card-header">
+                    <div class="patient-avatar">${initials}</div>
+                    <div class="patient-info">
+                        <h3>${escHtml(p.name)}</h3>
+                        <p>Age ${p.age}</p>
+                    </div>
+                </div>
+                <div class="patient-stats">
+                    <span class="stat-pill">📊 ${p.reading_count} readings</span>
+                    <span class="stat-pill">🆔 ID #${p.id}</span>
+                </div>
+                <div class="patient-actions">
+                    <button class="btn btn-blue btn-sm"
+                        onclick="window.location.href='/patient_detail.html?id=${p.id}'">
+                        📈 View Details
+                    </button>
+                    <button class="btn btn-ghost btn-sm"
+                        onclick="window.location.href='/?patient=${p.id}'">
+                        📡 Monitor
+                    </button>
+                    <button class="btn btn-ghost btn-sm"
+                        onclick="undoLast(${p.id}, '${escHtml(p.name)}')">
+                        ↩ Undo
+                    </button>
+                    <button class="btn btn-danger btn-sm"
+                        onclick="deletePatient(${p.id}, '${escHtml(p.name)}')">
+                        🗑 Delete
+                    </button>
+                </div>
+            </div>`;
+        }).join('');
+    }
+
+    /* ---- Client-side filter (simulates BST name search) ---- */
+    function filterPatients() {
+        const q = document.getElementById('searchInput').value.toLowerCase().trim();
+        if (!q) { renderPatients(allPatients); return; }
+
+        /* Simple linear search on name (BST lookup is on server side) */
+        const filtered = allPatients.filter(p =>
+            p.name.toLowerCase().includes(q)
+        );
+        renderPatients(filtered);
+
+        if (filtered.length === 1)
+            showToast(`BST found: ${filtered[0].name}`, 'info');
+    }
+
+    /* ── Add modal ── */
+    function openAddModal()  { document.getElementById('addModal').classList.add('open'); }
+    function closeAddModal() { document.getElementById('addModal').classList.remove('open'); }
+
+    document.getElementById('addModal').addEventListener('click', e => {
+        if (e.target === e.currentTarget) closeAddModal();
+    });
+
+    async function submitAddPatient() {
+        const name = document.getElementById('newName').value.trim();
+        const age  = parseInt(document.getElementById('newAge').value) || 0;
+        if (!name) { showToast('Name is required', 'error'); return; }
+
+        const btn = document.getElementById('addBtn');
+        btn.disabled = true; btn.textContent = 'Creating…';
+        try {
+            await apiFetch('/api/patients', {
+                method: 'POST',
+                body: JSON.stringify({ name, age })
+            });
+            closeAddModal();
+            document.getElementById('newName').value = '';
+            document.getElementById('newAge').value  = '';
+            showToast(`Patient "${name}" created!`, 'success');
+            await loadPatients();
+        } catch (e) {
+            showToast('Failed: ' + e.message, 'error');
+        } finally {
+            btn.disabled = false; btn.textContent = 'Create Patient';
+        }
+    }
+
+    /* ── Undo last reading ── */
+    async function undoLast(id, name) {
+        try {
+            const res = await apiFetch(`/api/patients/${id}/undo`, { method: 'POST', body: '' });
+            showToast(
+                `Undo OK for ${name}: removed HR ${res.removed.hr}, SpO2 ${res.removed.spo2}`,
+                'success'
+            );
+            await loadPatients();
+        } catch (e) {
+            showToast(`Undo for ${name}: ${e.message}`, 'error');
+        }
+    }
+
+    /* ── Delete patient ── */
+    async function deletePatient(id, name) {
+        if (!confirm(`Delete patient "${name}" and ALL their readings?\nThis cannot be undone.`)) return;
+        try {
+            await apiFetch(`/api/patients/${id}`, { method: 'DELETE' });
+            showToast(`Deleted "${name}"`, 'success');
+            await loadPatients();
+        } catch (e) {
+            showToast('Delete failed: ' + e.message, 'error');
+        }
+    }
+
+    /* ── Util ── */
+    function escHtml(s) {
+        return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    }
+
+    /* ── Init ── */
+    loadPatients();
+
+    /* Support ?patient=id from dashboard monitor links */
+    const urlP = new URLSearchParams(window.location.search).get('patient');
+    if (urlP) {
+        window.location.href = `/patient_detail.html?id=${urlP}`;
+    }
+</script>
+</body>
+</html>
