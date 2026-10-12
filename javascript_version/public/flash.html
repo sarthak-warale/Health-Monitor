@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Install Health Monitor firmware on an ESP32 over USB.">
+  <title>Install ESP32 firmware · Health Monitor</title>
+  <link rel="stylesheet" href="/styles.css">
+  <script type="module" src="https://unpkg.com/esp-web-tools@10/dist/web/install-button.js?module"></script>
+  <style>
+    body { min-height: 100vh; display: grid; place-items: center; padding: 24px; }
+    .flash-card { width: min(620px, 100%); padding: 32px; border: 1px solid var(--line, #e4e7ec); border-radius: 22px; background: var(--surface, #fff); box-shadow: 0 20px 60px #15223812; }
+    .flash-card h1 { margin: 0 0 10px; }
+    .flash-card p { line-height: 1.6; }
+    .flash-actions { margin: 24px 0; }
+    .flash-actions esp-web-install-button { --esp-tools-button-color: #276ef1; --esp-tools-button-text-color: #fff; --esp-tools-button-border-radius: 12px; }
+    .flash-back { display: inline-block; margin-top: 8px; }
+    .flash-note { padding: 14px 16px; border-radius: 12px; background: #f4f7fc; }
+  </style>
+</head>
+<body>
+  <main class="flash-card">
+    <p class="eyebrow">Device setup</p>
+    <h1>Install ESP32 firmware</h1>
+    <p>Connect your ESP32 DevKit/WROOM with a USB data cable, then choose the serial port below. Keep the board connected until installation finishes.</p>
+    <div class="flash-actions">
+      <esp-web-install-button manifest="/firmware/manifest.json">
+        <button slot="activate">Install firmware</button>
+        <span slot="unsupported">Use desktop Chrome, Edge, or Firefox with Web Serial support.</span>
+        <span slot="not-allowed">USB flashing needs a secure HTTPS page (or localhost).</span>
+      </esp-web-install-button>
+    </div>
+    <p class="flash-note">Before this button can install firmware, build the sketch with your private device settings and publish the generated files in <code>public/firmware/</code>. After flashing, connect the MAX30102 and open the serial monitor at 115200 baud to check Wi-Fi and sensor status.</p>
+    <a class="flash-back" href="/">← Back to dashboard</a>
+  </main>
+</body>
+</html>

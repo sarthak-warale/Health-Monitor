@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="A clean, live dashboard for patient heart rate and blood oxygen readings.">
+  <meta name="theme-color" content="#f5f7fb">
+  <title>Pulse — Health Monitor</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <div class="shell">
+    <aside class="sidebar" id="sidebar">
+      <a class="brand" href="/" aria-label="Pulse home">
+        <span class="brand-mark" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M3 12h4l2.2-6 4.1 12 2.2-6H21"/></svg></span>
+        <span class="brand-name">pulse<span>.</span></span>
+      </a>
+
+      <div class="side-label">WORKSPACE</div>
+      <nav class="side-nav" aria-label="Main navigation">
+        <button class="nav-item active" data-view="overview"><span class="nav-icon">◫</span> Overview</button>
+        <button class="nav-item" data-view="patients"><span class="nav-icon">♙</span> Patients <span class="nav-count" id="navPatientCount">—</span></button>
+        <a class="nav-item" href="/flash.html"><span class="nav-icon">↥</span> Flash ESP32</a>
+      </nav>
+
+      <div class="side-label patient-label">PATIENTS <button class="icon-button small" id="sideAddPatient" aria-label="Add patient">＋</button></div>
+      <div class="side-patients" id="sidePatients"><div class="side-loading">Loading patient list…</div></div>
+
+      <div class="sidebar-bottom">
+        <div class="connection-card">
+          <span class="connection-dot" id="connectionDot"></span>
+          <div><strong id="connectionText">Connecting</strong><small>Health Monitor API</small></div>
+          <button class="icon-button small" id="refreshButton" aria-label="Refresh data" title="Refresh">↻</button>
+        </div>
+        <div class="sidebar-foot">HEALTH MONITOR <span>v2</span></div>
+      </div>
+    </aside>
+
+    <main class="main">
+      <header class="topbar">
+        <button class="icon-button menu-button" id="menuButton" aria-label="Open navigation">☰</button>
+        <div class="breadcrumb"><span>Workspace</span><b>/</b><strong id="crumbCurrent">Overview</strong></div>
+        <div class="topbar-actions">
+          <div class="live-pill"><i></i><span>LIVE</span></div>
+          <span class="top-date" id="todayLabel"></span>
+          <button class="icon-button" id="logoutButton" type="button" aria-label="Sign out" title="Sign out" hidden>↪</button>
+          <div class="avatar" aria-label="Health monitor">HM</div>
+        </div>
+      </header>
+
+      <section class="view active" id="overviewView">
+        <div class="page-heading">
+          <div><p class="eyebrow" id="greeting">PATIENT CARE</p><h1>Good health starts with a clear view.</h1><p class="subheading">Track vital signs and keep an eye on every patient.</p></div>
+          <button class="button primary" id="simulateButton" disabled><span>＋</span> Simulate reading</button>
+        </div>
+
+        <section class="summary-strip" aria-label="Monitoring summary">
+          <div class="summary-cell"><span class="summary-icon violet">♙</span><div><small>Patients monitored</small><strong id="summaryPatients">—</strong></div></div>
+          <div class="summary-cell"><span class="summary-icon mint">♥</span><div><small>Latest heart rate</small><strong><span id="summaryHr">—</span><em> BPM</em></strong></div></div>
+          <div class="summary-cell"><span class="summary-icon blue">◉</span><div><small>Latest blood oxygen</small><strong><span id="summarySpo2">—</span><em>%</em></strong></div></div>
+          <div class="summary-cell summary-updated"><span class="summary-icon amber">◷</span><div><small>Last updated</small><strong class="updated-value" id="lastUpdated">Waiting for data</strong></div></div>
+        </section>
+
+        <div class="section-heading"><div><h2>Patient overview</h2><p>Choose a patient to view their readings</p></div><button class="text-button" data-open-view="patients">All patients <span>→</span></button></div>
+        <div class="patient-grid" id="patientGrid"><div class="loading-card"><span class="spinner"></span>Loading your patients…</div></div>
+
+        <section class="detail-layout" id="detailPanel" hidden>
+          <div class="detail-main">
+            <div class="panel chart-panel">
+              <div class="panel-head"><div><div class="heading-with-dot"><h2>Vital signs</h2><span class="selected-badge" id="selectedPatientBadge"></span></div><p>Recent readings · updates every 5 seconds</p></div><div class="chart-legend"><span><i class="legend-heart"></i>Heart rate</span><span><i class="legend-o2"></i>SpO₂</span></div></div>
+              <div class="chart-wrap"><svg id="vitalsChart" viewBox="0 0 760 250" role="img" aria-label="Recent heart rate and oxygen readings"></svg></div>
+              <div class="chart-foot"><span>Values shown in BPM and percent</span><span id="chartRange">Waiting for readings</span></div>
+            </div>
+            <div class="panel readings-panel">
+              <div class="panel-head readings-head"><div><h2>Reading history</h2><p id="historyCaption">Most recent readings for this patient</p></div><div class="table-actions"><select id="sortSelect" aria-label="Sort readings"><option value="latest">Newest first</option><option value="hr">Heart rate: low to high</option><option value="spo2">SpO₂: low to high</option></select><button class="icon-button" id="undoButton" title="Undo latest reading" aria-label="Undo latest reading">↶</button></div></div>
+              <div class="table-scroll"><table><thead><tr><th>TIME</th><th>HEART RATE</th><th>BLOOD OXYGEN</th><th>STATUS</th></tr></thead><tbody id="readingRows"><tr><td colspan="4" class="empty-row">Select a patient to see readings.</td></tr></tbody></table></div>
+            </div>
+          </div>
+          <aside class="detail-side">
+            <div class="panel patient-profile"><div class="profile-top"><div class="profile-avatar" id="profileAvatar">—</div><span class="status-chip neutral" id="patientStatus">No readings</span></div><h2 id="patientName">Select a patient</h2><p id="patientMeta">Patient details</p><div class="profile-divider"></div><div class="profile-data"><span>Patient ID</span><strong id="profileId">—</strong><span>Readings recorded</span><strong id="profileReadings">—</strong></div><button class="button soft full" id="profileDelete">Remove patient</button></div>
+            <div class="metric-card heart-metric"><div class="metric-top"><span>HEART RATE</span><span class="metric-symbol">♥</span></div><div class="metric-number"><strong id="detailHr">—</strong><span>BPM</span></div><p id="detailHrStatus">Awaiting a reading</p><div class="metric-line heart-line"></div></div>
+            <div class="metric-card oxygen-metric"><div class="metric-top"><span>BLOOD OXYGEN</span><span class="metric-symbol">◉</span></div><div class="metric-number"><strong id="detailSpo2">—</strong><span>%</span></div><p id="detailSpo2Status">Awaiting a reading</p><div class="metric-line oxygen-line"></div></div>
+            <div class="note-card"><span>ⓘ</span><p><strong>For demonstration only.</strong> This dashboard displays simulated project data and is not a medical device.</p></div>
+          </aside>
+        </section>
+        <div class="empty-detail panel" id="emptyDetail"><span class="empty-detail-icon">⌁</span><div><strong>Select a patient</strong><p>Choose a patient card above to see live vitals and reading history.</p></div></div>
+      </section>
+
+      <section class="view" id="patientsView">
+        <div class="page-heading patients-heading"><div><p class="eyebrow">DIRECTORY</p><h1>Patients</h1><p class="subheading">Manage your patient list and open their monitoring view.</p></div><button class="button primary" id="addPatientButton"><span>＋</span> Add patient</button></div>
+        <div class="directory-toolbar"><label class="search-box"><span>⌕</span><input id="searchInput" type="search" placeholder="Search patients by name" autocomplete="off"></label><span id="directoryCount">0 patients</span></div>
+        <div class="directory-grid" id="directoryGrid"><div class="loading-card"><span class="spinner"></span>Loading your patients…</div></div>
+      </section>
+      <footer class="page-footer"><span>Pulse Health Monitor</span><span>Project demo · data is stored locally by the server</span></footer>
+    </main>
+  </div>
+
+  <div class="modal-backdrop" id="patientModal" hidden>
+    <form class="modal" id="patientForm">
+      <button type="button" class="modal-close icon-button" id="closeModal" aria-label="Close">×</button>
+      <span class="modal-mark">＋</span><p class="eyebrow">NEW RECORD</p><h2>Add a patient</h2><p class="modal-copy">Create a patient profile to start tracking readings.</p>
+      <label for="patientNameInput">Full name</label><input id="patientNameInput" name="name" type="text" maxlength="63" placeholder="e.g. Asha Mehta" required>
+      <label for="patientAgeInput">Age</label><input id="patientAgeInput" name="age" type="number" min="0" max="120" placeholder="e.g. 42" required>
+      <p class="form-error" id="formError" role="alert"></p>
+      <div class="modal-actions"><button type="button" class="button secondary" id="cancelModal">Cancel</button><button class="button primary" id="savePatient" type="submit">Create patient</button></div>
+    </form>
+  </div>
+  <div class="toast-region" id="toastRegion" aria-live="polite"></div>
+  <script src="/app.js" defer></script>
+</body>
+</html>

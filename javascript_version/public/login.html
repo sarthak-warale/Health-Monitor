@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#f5f7fb">
+  <title>Sign in · Health Monitor</title>
+  <link rel="stylesheet" href="/styles.css">
+  <style>
+    body { min-height: 100vh; display: grid; place-items: center; padding: 24px; background: #f5f7fb; }
+    .login-card { width: min(420px, 100%); padding: 32px; border: 1px solid #e5e9f0; border-radius: 22px; background: #fff; box-shadow: 0 20px 60px #15223812; }
+    .login-card h1 { margin: 0 0 8px; }
+    .login-card p { line-height: 1.55; }
+    .login-card label { display: block; margin: 20px 0 8px; font-weight: 650; }
+    .login-card input { box-sizing: border-box; width: 100%; padding: 13px 14px; border: 1px solid #d9deea; border-radius: 10px; font: inherit; }
+    .login-card button { width: 100%; margin-top: 16px; }
+    #loginError { min-height: 1.3em; color: #b42318; }
+  </style>
+</head>
+<body>
+  <main class="login-card">
+    <p class="eyebrow">HEALTH MONITOR</p>
+    <h1>Sign in</h1>
+    <p>Enter the dashboard password configured for this deployment.</p>
+    <form id="loginForm">
+      <label for="password">Dashboard password</label>
+      <input id="password" name="password" type="password" autocomplete="current-password" required autofocus>
+      <button class="button primary" type="submit">Continue</button>
+      <p id="loginError" role="alert"></p>
+    </form>
+  </main>
+  <script src="/login.js" defer></script>
+</body>
+</html>
